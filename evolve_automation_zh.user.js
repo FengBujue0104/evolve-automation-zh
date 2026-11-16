@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Evolve 自动化（简体中文版）
 // @namespace    evolve-automation-zh
-// @version      3.3.1.152-zh.8
+// @version      3.3.1.152-zh.9
 // @description  Vollch Evolve-Automation 的简体中文版：界面汉化、游戏外观统一、主界面圆点开关、微软雅黑字体。逻辑与上游一致，设置可互相导入。
 // @author       Fafnir
 // @author       TMVictor
@@ -21478,7 +21478,7 @@ html.gruvboxDark #mainColumn .action > a.button {
 
 /* ===== 主界面开关：空心圆（关）/ 实心圆（开），绿色与设置页强调色相同 =====
    只改外观与点击热区，不改点击逻辑。脚本设置页、游戏设置页、脚本弹窗、
-   左下角 #autoScriptContainer / #scriptToggles、以及 #spire-mech-kit 仍用胶囊开关，不用绿点。
+   左下角 #autoScriptContainer / #scriptToggles、以及 #spire-mech-kit / #soul-gem-kit 仍用胶囊开关，不用绿点。
    可见圆点约 12px，热区约 24px，与旁边文字垂直居中并留出间隙，避免挡住标题或数量。 */
 #mTabCivil label.switch,
 #mTabCivic label.switch,
@@ -21724,10 +21724,10 @@ label.switch.ea-supply-toggle {
 }
 
 /* 主界面原生复选框（总督任务等）：同样的空心/实心圆，保留原点击行为 */
-#mTabCivic input[type=checkbox]:not(.switch input):not(label.switch input):not(#spire-mech-kit input),
-#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input),
+#mTabCivic input[type=checkbox]:not(.switch input):not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input),
+#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input),
 #powerGrid input[type=checkbox]:not(label.switch input),
-#portal input[type=checkbox]:not(label.switch input) {
+#portal input[type=checkbox]:not(label.switch input):not(#soul-gem-kit input) {
   -webkit-appearance: none;
   appearance: none;
   width: 14px;
@@ -21741,17 +21741,17 @@ label.switch.ea-supply-toggle {
   cursor: pointer;
   flex-shrink: 0;
 }
-#mTabCivic input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):checked,
-#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):checked,
+#mTabCivic input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):checked,
+#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):checked,
 #powerGrid input[type=checkbox]:not(label.switch input):checked,
-#portal input[type=checkbox]:not(label.switch input):checked {
+#portal input[type=checkbox]:not(label.switch input):not(#soul-gem-kit input):checked {
   background: var(--ea-accent);
   border-color: var(--ea-accent);
 }
-#mTabCivic input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):disabled,
-#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):disabled,
+#mTabCivic input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):disabled,
+#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):disabled,
 #powerGrid input[type=checkbox]:not(label.switch input):disabled,
-#portal input[type=checkbox]:not(label.switch input):disabled {
+#portal input[type=checkbox]:not(label.switch input):not(#soul-gem-kit input):disabled {
   border-color: var(--ea-off);
   background: transparent;
   opacity: .55;
@@ -21851,8 +21851,9 @@ label.switch.ea-supply-toggle {
   box-shadow: 0 0 0 3px rgba(72,199,142,.22) !important;
 }
 
-/* 机甲工具箱：恢复原胶囊开关，不被 #mTabCivic / #civics 的绿点规则改掉 */
-#spire-mech-kit input[type=checkbox] {
+/* 机甲工具箱 / 灵魂石工具箱：恢复原胶囊开关，不被绿点规则改掉 */
+#spire-mech-kit input[type=checkbox],
+#soul-gem-kit input[type=checkbox] {
   -webkit-appearance: none !important;
   appearance: none !important;
   position: relative;
@@ -21871,7 +21872,8 @@ label.switch.ea-supply-toggle {
   font-size: 14px;
   opacity: 1;
 }
-#spire-mech-kit input[type=checkbox]::before {
+#spire-mech-kit input[type=checkbox]::before,
+#soul-gem-kit input[type=checkbox]::before {
   content: "" !important;
   display: block !important;
   position: absolute;
@@ -21886,18 +21888,22 @@ label.switch.ea-supply-toggle {
   transform: none;
   transition: transform .15s;
 }
-#spire-mech-kit input[type=checkbox]:checked {
+#spire-mech-kit input[type=checkbox]:checked,
+#soul-gem-kit input[type=checkbox]:checked {
   background: var(--smk-accent, var(--ea-accent)) !important;
   border-color: transparent !important;
 }
-#spire-mech-kit input[type=checkbox]:checked::before {
+#spire-mech-kit input[type=checkbox]:checked::before,
+#soul-gem-kit input[type=checkbox]:checked::before {
   transform: translateX(1.1em);
 }
-#spire-mech-kit input[type=checkbox]:disabled {
+#spire-mech-kit input[type=checkbox]:disabled,
+#soul-gem-kit input[type=checkbox]:disabled {
   opacity: .55;
   cursor: default;
 }
-#spire-mech-kit label:hover input[type=checkbox] {
+#spire-mech-kit label:hover input[type=checkbox],
+#soul-gem-kit label:hover input[type=checkbox] {
   box-shadow: 0 0 0 3px rgba(72,199,142,.22) !important;
 }
 

@@ -1,18 +1,19 @@
 # Evolve 自动化脚本（g8hh 简体中文镜像）
 
-适用于 [g8hh Evolve 镜像](https://g8hh.github.io/evolve/) 的三个 Tampermonkey 用户脚本。只匹配 `https://g8hh.github.io/evolve/`，地址带 `index.html` 或查询参数时不会加载。
+适用于 [g8hh Evolve 镜像](https://g8hh.github.io/evolve/) 的 Tampermonkey 用户脚本。只匹配 `https://g8hh.github.io/evolve/`，地址带 `index.html` 或查询参数时不会加载。
 
 ## 当前版本
 
 - **Evolve 自动化（简体中文版）** `3.3.1.152-zh.9`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/evolve_automation_zh.user.js)
 - **尖塔机甲工具箱** `1.5.3`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/spire-mech-kit.user.js)
 - **尖塔灵魂石工具箱** `1.2.1`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/soul-gem-kit.user.js)
+- **禁食工具箱** `1.0.0`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/fasting-kit.user.js)
 
 ## 安装
 
 1. 先安装 Tampermonkey（或其他用户脚本管理器）。
 2. 如果已经装着英文版 Vollch Evolve-Automation，请先停用或删除，两个同时开会重复运行。
-3. 打开上面的安装链接，按提示安装。三个脚本可以同时开启。
+3. 打开上面的安装链接，按提示安装。这些脚本可以同时开启。
 4. 打开游戏时请使用不含 `index.html` 和查询参数的地址：[https://g8hh.github.io/evolve/](https://g8hh.github.io/evolve/)。
 5. 游戏设置里需要开启「调试模式（expose）」和「预加载标签页内容」，与原版要求相同。
 
@@ -26,12 +27,14 @@
 
 尖塔灵魂石工具箱是爬塔时用来拉高灵魂宝石产量的辅助脚本，默认关闭，开始爬塔后可自动启用。开启后会尽量把引诱装置开满、把士兵送进地狱增加巡逻，并接管灵魂宝石三件套和双排桨军舰的供能，避免主脚本抢开关。适时建造默认关闭以节省灵魂宝石；关闭全部掠食者无人机默认开启（只停电、不拆除）。双排桨军舰不会被关掉，补给仍由主脚本的运输船和自动补给管理。
 
+禁食工具箱是禁食剧情专用的辅助脚本，设置存在自己的本地存储里，不会改主脚本配置包。侦测到禁食时会自动启用；手动关掉后，同一局里不会再自动开。默认按人口上限和 1200 人口预留冥想者（余量 3）以保住不死（长生秘辛），并管理血湖炉灶和浸魂器。生命灌注器和煮完自动重置默认关闭。面板挂在职业列表上方。
+
 ## 存档与配置
 
 - 游戏存档：[saves/cid-latest-1116-2026.txt](saves/cid-latest-1116-2026.txt)
 - 主脚本配置：[saves/cid-settings-1116-2026.json](saves/cid-settings-1116-2026.json)
 
-这份存档和配置是在三个脚本都开着时导出的。配置里被灵魂石工具箱临时关掉的开关（例如地狱自动、仙女座舰队，以及三件套和双排桨的供能）已经是关着的。如果需要一份「主脚本全开」的配置，请先关掉灵魂石工具箱、等开关还原后再导出。
+这份存档和配置是在主脚本、机甲工具箱和灵魂石工具箱都开着时导出的。配置里被灵魂石工具箱临时关掉的开关（例如地狱自动、仙女座舰队，以及三件套和双排桨的供能）已经是关着的。如果需要一份「主脚本全开」的配置，请先关掉灵魂石工具箱、等开关还原后再导出。
 
 ## 致谢
 

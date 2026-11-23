@@ -8,14 +8,17 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { handleRequest, extractMeta, SCRIPTS } from "./worker.js";
+import { handleRequest, extractMeta, SCRIPTS, NODESEEK_SCRIPTS } from "./worker.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const localRepo = process.env.SCRIPT_DIR || "/workspace/evolve-automation-zh";
+const nodeseekRepo = process.env.NODESEEK_DIR || "/workspace/ns-work/repo";
 const env = {
   GITHUB_OWNER: "FengBujue0104",
   GITHUB_REPO: "evolve-automation-zh",
   GITHUB_REF: "main",
+  NODESEEK_REPO: "nodeseek-scripts",
+  NODESEEK_REF: "main",
 };
 
 let failed = 0;
@@ -100,6 +103,57 @@ assert(idx.status === 200, "index 200");
 const idxBody = await idx.text();
 assert(idxBody.includes("evolve_automation_zh.user.js"), "index lists main script");
 
+
+console.log("\n== unit: /nodeseek/ prefix (second repo) ==");
+const seen = [];
+const routedFetch = async (url) => {
+  const u = String(url);
+  seen.push(u);
+  const evo = "https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/";
+  const ns = "https://raw.githubusercontent.com/FengBujue0104/nodeseek-scripts/main/";
+  const dir = u.startsWith(ns) ? nodeseekRepo : u.startsWith(evo) ? localRepo : null;
+  const file = dir && u.slice((u.startsWith(ns) ? ns : evo).length);
+  if (!dir || file.includes("/") || !existsSync(join(dir, file))) return new Response("missing", { status: 404 });
+  return new Response(readFileSync(join(dir, file), "utf8"), { status: 200 });
+};
+for (const file of SCRIPTS) {
+  seen.length = 0;
+  const res = await call("/" + file, { fetchImpl: routedFetch });
+  assert(res.status === 200 && seen[0] === `https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/${file}`,
+    `evolve ${file} still proxies evolve-automation-zh`);
+  assert((await res.text()) === readFileSync(join(localRepo, file), "utf8"), `evolve ${file} body unchanged`);
+}
+for (const file of NODESEEK_SCRIPTS) {
+  const local = readFileSync(join(nodeseekRepo, file), "utf8");
+  const ver = headerVersion(local);
+  seen.length = 0;
+  const res = await call("/nodeseek/" + file, { fetchImpl: routedFetch });
+  const body = await res.text();
+  assert(res.status === 200, `/nodeseek/${file} 200 (got ${res.status})`);
+  assert(seen[0] === `https://raw.githubusercontent.com/FengBujue0104/nodeseek-scripts/main/${file}`, `/nodeseek/${file} upstream URL`);
+  assert((res.headers.get("Content-Type") || "").startsWith("text/javascript"), `/nodeseek/${file} Content-Type`);
+  assert(body === local, `/nodeseek/${file} body matches`);
+  const meta = await call("/nodeseek/" + file.replace(/\.user\.js$/, ".meta.js"), { fetchImpl: routedFetch });
+  const metaBody = await meta.text();
+  assert(meta.status === 200 && headerVersion(metaBody) === ver, `/nodeseek/ meta ${file} @version ${ver}`);
+  assert(metaBody === extractMeta(local), `/nodeseek/ meta ${file} header only`);
+  assert(metaBody.includes(`https://scripts.fengbujue.com/nodeseek/${file}`), `${file} @downloadURL points to /nodeseek/`);
+  const cross = await call("/" + file, { fetchImpl: routedFetch });
+  assert(cross.status === 404, `/${file} without prefix 404`);
+}
+for (const file of SCRIPTS) {
+  const r = await call("/nodeseek/" + file, { fetchImpl: routedFetch });
+  assert(r.status === 404, `/nodeseek/${file} (evolve name under prefix) 404`);
+}
+for (const bad of ["/nodeseek/x/nodeseek-hotlist.user.js", "/nodeseek/%2e%2e%2fnodeseek-hotlist.user.js", "/nodeseek/%E0%A4%A.user.js"]) {
+  const r = await call(bad, { fetchImpl: routedFetch });
+  assert(r.status === 404, `bad path ${bad} 404 (got ${r.status})`);
+}
+const nsIdx = await call("/nodeseek/", { fetchImpl: routedFetch });
+const nsIdxBody = await nsIdx.text();
+assert(nsIdx.status === 200 && nsIdxBody.includes("/nodeseek/nodeseek-pro-max.user.js"), "/nodeseek/ index lists scripts");
+assert(!idxBody.includes("nodeseek"), "root index unchanged (no nodeseek entries)");
+
 if (process.env.LIVE === "1") {
   console.log("\n== live: worker fetch of raw.githubusercontent.com ==");
   for (const file of SCRIPTS) {
@@ -116,6 +170,14 @@ if (process.env.LIVE === "1") {
     const metaBody = await meta.text();
     assert(meta.status === 200, `live meta ${file} 200`);
     assert(headerVersion(metaBody) === ver, `live meta @version matches ${ver}`);
+  }
+  for (const file of NODESEEK_SCRIPTS) {
+    const res = await call("/nodeseek/" + file);
+    const body = await res.text();
+    const ver = headerVersion(body);
+    assert(res.status === 200 && !!ver, `live /nodeseek/${file} 200 (${ver})`);
+    const meta = await call("/nodeseek/" + file.replace(/\.user\.js$/, ".meta.js"));
+    assert(headerVersion(await meta.text()) === ver, `live /nodeseek/ meta ${file} @version ${ver}`);
   }
 }
 
@@ -146,6 +208,16 @@ if (process.env.BASE_URL) {
       `dev meta Content-Type`,
     );
     assert(headerVersion(metaBody) === localVer, `dev meta @version ${localVer}`);
+  }
+  for (const file of NODESEEK_SCRIPTS) {
+    const localVer = headerVersion(readFileSync(join(nodeseekRepo, file), "utf8"));
+    for (const name of [file, file.replace(/\.user\.js$/, ".meta.js")]) {
+      const res = await fetch(base + "/nodeseek/" + name, { headers: { "User-Agent": "evolve-scripts-local-test/1.0" } });
+      const body = await res.text();
+      assert(res.status === 200, `dev /nodeseek/${name} 200 (got ${res.status})`);
+      assert((res.headers.get("Content-Type") || "").startsWith("text/javascript"), `dev /nodeseek/${name} Content-Type (${res.headers.get("Content-Type")})`);
+      assert(headerVersion(body) === localVer, `dev /nodeseek/${name} @version ${headerVersion(body)} == local ${localVer}`);
+    }
   }
 }
 

@@ -6,6 +6,9 @@
  *   /                          — index of allowed scripts
  *   /<name>.user.js            — full script
  *   /<name>.meta.js            — ==UserScript== header only (update check)
+ *   /nodeseek/                 — index of NodeSeek scripts
+ *   /nodeseek/<name>.user.js   — from FengBujue0104/nodeseek-scripts
+ *   /nodeseek/<name>.meta.js
  */
 
 export const SCRIPTS = Object.freeze([
@@ -17,6 +20,15 @@ export const SCRIPTS = Object.freeze([
 
 const ALLOWED = new Set(SCRIPTS);
 
+// Second repo, served under /nodeseek/. Evolve paths above are unaffected.
+const NODESEEK_PREFIX = "/nodeseek/";
+export const NODESEEK_SCRIPTS = Object.freeze([
+  "nodeseek-hotlist.user.js",
+  "nodeseek-pro-max.user.js",
+  "nodeseek-level1.user.js",
+]);
+const NODESEEK_ALLOWED = new Set(NODESEEK_SCRIPTS);
+
 export function extractMeta(source) {
   const match = String(source).match(
     /^[\s\S]*?(\/\/\s*==UserScript==[\s\S]*?\/\/\s*==\/UserScript==)/,
@@ -24,14 +36,19 @@ export function extractMeta(source) {
   return match ? match[1] + "\n" : null;
 }
 
-function scriptNameFromPath(pathname) {
-  const name = decodeURIComponent(pathname).replace(/^\/+/, "");
+function scriptNameFromPath(pathname, allowed = ALLOWED) {
+  let name;
+  try {
+    name = decodeURIComponent(pathname).replace(/^\/+/, "");
+  } catch {
+    return null;
+  }
   if (name.includes("/") || name.includes("\\") || name.includes("..")) return null;
   if (name.endsWith(".meta.js")) {
     const user = name.slice(0, -".meta.js".length) + ".user.js";
-    return ALLOWED.has(user) ? { file: user, metaOnly: true } : null;
+    return allowed.has(user) ? { file: user, metaOnly: true } : null;
   }
-  if (name.endsWith(".user.js") && ALLOWED.has(name)) {
+  if (name.endsWith(".user.js") && allowed.has(name)) {
     return { file: name, metaOnly: false };
   }
   return null;
@@ -88,6 +105,20 @@ function indexBody(origin) {
   return lines.join("\n");
 }
 
+function nodeseekIndexBody(origin) {
+  const lines = [
+    "NodeSeek userscript mirror",
+    "source: https://github.com/FengBujue0104/nodeseek-scripts",
+    "",
+  ];
+  for (const file of NODESEEK_SCRIPTS) {
+    lines.push(`${origin}${NODESEEK_PREFIX}${file}`);
+    lines.push(`${origin}${NODESEEK_PREFIX}${file.replace(/\.user\.js$/, ".meta.js")}`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
 export async function handleRequest(request, env, { fetchImpl = fetch } = {}) {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
@@ -106,12 +137,23 @@ export async function handleRequest(request, env, { fetchImpl = fetch } = {}) {
     return res;
   }
 
-  const parsed = scriptNameFromPath(url.pathname);
+  const isNodeseek = url.pathname.startsWith(NODESEEK_PREFIX) || url.pathname === "/nodeseek";
+  if (isNodeseek && (url.pathname === "/nodeseek" || url.pathname === NODESEEK_PREFIX)) {
+    const res = textResponse(200, nodeseekIndexBody(url.origin), { "Cache-Control": "public, max-age=60" });
+    if (method === "HEAD") return new Response(null, { status: 200, headers: res.headers });
+    return res;
+  }
+
+  const parsed = isNodeseek
+    ? scriptNameFromPath(url.pathname.slice(NODESEEK_PREFIX.length), NODESEEK_ALLOWED)
+    : scriptNameFromPath(url.pathname);
   if (!parsed) return textResponse(404, "Not Found");
 
   const owner = env.GITHUB_OWNER || "FengBujue0104";
-  const repo = env.GITHUB_REPO || "evolve-automation-zh";
-  const ref = env.GITHUB_REF || "main";
+  const repo = isNodeseek
+    ? env.NODESEEK_REPO || "nodeseek-scripts"
+    : env.GITHUB_REPO || "evolve-automation-zh";
+  const ref = isNodeseek ? env.NODESEEK_REF || "main" : env.GITHUB_REF || "main";
   const upstream = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${parsed.file}`;
 
   const upstreamRes = await fetchImpl(upstream, {

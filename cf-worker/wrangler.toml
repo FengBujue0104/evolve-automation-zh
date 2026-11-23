@@ -13,3 +13,6 @@ custom_domain = true
 GITHUB_OWNER = "FengBujue0104"
 GITHUB_REPO = "evolve-automation-zh"
 GITHUB_REF = "main"
+# /nodeseek/* paths proxy this second repo
+NODESEEK_REPO = "nodeseek-scripts"
+NODESEEK_REF = "main"

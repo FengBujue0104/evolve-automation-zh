@@ -2,7 +2,7 @@
 
 把 GitHub 仓库 `FengBujue0104/evolve-automation-zh` 里的用户脚本按原路径代理出来，并加上 Tampermonkey 需要的 `Content-Type: text/javascript`。`.meta.js` 只返回 `==UserScript==` 头，方便 `@updateURL` 做版本检查。
 
-已部署到自定义域名 **https://scripts.fengbujue.com/**（Worker 名 `evolve-scripts`）。不要把 API token 写进这些文件。一个 Worker 挂全部四个脚本。
+已部署到自定义域名 **https://scripts.fengbujue.com/**（Worker 名 `evolve-scripts`）。不要把 API token 写进这些文件。一个 Worker 挂全部四个 Evolve 脚本，另在 `/nodeseek/` 下挂三个 NodeSeek 脚本。
 
 ## 允许的路径
 
@@ -12,6 +12,19 @@
 - `/fasting-kit.user.js` / `.meta.js` — 禁食工具箱
 
 上游：`https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/<file>`
+
+### NodeSeek 脚本（`/nodeseek/` 前缀，第二个仓库）
+
+同一个 Worker、同一个域名，`/nodeseek/` 下的路径代理 `FengBujue0104/nodeseek-scripts`（`wrangler.toml` 里的 `NODESEEK_REPO` / `NODESEEK_REF`）。上面四个 Evolve 路径和根目录索引不受影响。
+
+- `/nodeseek/` — NodeSeek 脚本索引
+- `/nodeseek/nodeseek-hotlist.user.js` / `.meta.js` — NodeSeek 热榜插件
+- `/nodeseek/nodeseek-pro-max.user.js` / `.meta.js` — NodeSeek Pro Max（cid 改版）
+- `/nodeseek/nodeseek-level1.user.js` / `.meta.js` — NodeSeek 一级及以下标记与屏蔽
+
+上游：`https://raw.githubusercontent.com/FengBujue0104/nodeseek-scripts/main/<file>`。两组白名单互不相通：Evolve 文件名放在 `/nodeseek/` 下、NodeSeek 文件名放在根路径下都返回 404。
+
+本地测试默认从 `/workspace/ns-work/repo` 读取 NodeSeek 脚本，可用 `NODESEEK_DIR=<nodeseek-scripts 克隆目录>` 覆盖。
 
 ## 本地测试
 

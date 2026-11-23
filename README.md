@@ -4,22 +4,26 @@
 
 ## 当前版本
 
-- **Evolve 自动化（简体中文版）** `3.3.1.152-zh.10`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/evolve_automation_zh.user.js)
-- **尖塔机甲工具箱** `1.6.0`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/spire-mech-kit.user.js)
-- **尖塔灵魂石工具箱** `1.2.1`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/soul-gem-kit.user.js)
-- **禁食工具箱** `1.0.0`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/fasting-kit.user.js)
+安装和自动更新都走 `https://scripts.fengbujue.com/`（Cloudflare Worker 镜像，国内比 GitHub raw 更容易打开）。脚本头里的 `@updateURL` / `@downloadURL` 也指向这里。
+
+- **Evolve 自动化（简体中文版）** `3.3.1.152-zh.11`：[安装脚本](https://scripts.fengbujue.com/evolve_automation_zh.user.js)（[更新检查](https://scripts.fengbujue.com/evolve_automation_zh.meta.js)）
+- **尖塔机甲工具箱** `1.6.1`：[安装脚本](https://scripts.fengbujue.com/spire-mech-kit.user.js)（[更新检查](https://scripts.fengbujue.com/spire-mech-kit.meta.js)）
+- **尖塔灵魂石工具箱** `1.2.2`：[安装脚本](https://scripts.fengbujue.com/soul-gem-kit.user.js)（[更新检查](https://scripts.fengbujue.com/soul-gem-kit.meta.js)）
+- **禁食工具箱** `1.0.1`：[安装脚本](https://scripts.fengbujue.com/fasting-kit.user.js)（[更新检查](https://scripts.fengbujue.com/fasting-kit.meta.js)）
+
+GitHub raw 备份：[主脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/evolve_automation_zh.user.js)、[机甲](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/spire-mech-kit.user.js)、[灵魂石](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/soul-gem-kit.user.js)、[禁食](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/fasting-kit.user.js)。
 
 ## 安装
 
 1. 先安装 Tampermonkey（或其他用户脚本管理器）。
 2. 如果已经装着英文版 Vollch Evolve-Automation，请先停用或删除，两个同时开会重复运行。
-3. 打开上面的安装链接，按提示安装。这些脚本可以同时开启。
+3. 打开上面的安装链接，按提示安装。这些脚本可以同时开启。已经装过旧版的，用同一条安装链接覆盖即可，之后会从 `scripts.fengbujue.com` 自动检查更新。
 4. 打开游戏时请使用不含 `index.html` 和查询参数的地址：[https://g8hh.github.io/evolve/](https://g8hh.github.io/evolve/)。
 5. 游戏设置里需要开启「调试模式（expose）」和「预加载标签页内容」，与原版要求相同。
 
 ## 说明
 
-中文主脚本基于 [Vollch/Evolve-Automation](https://github.com/Vollch/Evolve-Automation) 3.3.1.152，界面汉化并统一了外观。设置键和导入导出格式与原版兼容，已有设置可以照常导入。
+中文主脚本基于 [Vollch/Evolve-Automation](https://github.com/Vollch/Evolve-Automation) 3.3.1.152，界面汉化并统一了外观。设置键和导入导出格式与原版兼容，已有设置可以照常导入。zh.11、机甲 1.6.1、灵魂石 1.2.2、禁食 1.0.1 只改了脚本头的更新链接，功能和上一版相同。
 
 这版会直接屏蔽锅巴汉化加在页面右侧的客服、加群和公众号浮窗。设置里的「通用 → 附加界面」有一个默认关闭的「隐藏底栏」开关，打开后会藏掉页面底部的 Evolve 作者和外链栏，并让游戏画面填满原来底栏占据的空间。zh.9 起把灵魂石工具箱、zh.10 起把禁食工具箱从主脚本的绿点美化样式里排除，避免开关错位。
 

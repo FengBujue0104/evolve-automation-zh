@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         尖塔灵魂石工具箱
 // @namespace    evolve-soul-gem-kit
-// @version      1.2.1
+// @version      1.2.2
 // @description  爬塔时临时开启：引诱装置开满、军人船员尽量压到 0，士兵移入地狱多派巡逻，以尽量提高灵魂宝石掉率；可适时建造灵魂宝石三件套（默认关），并可关闭已有掠食者无人机以免抢巡逻掉宝。优先于主脚本的地狱/舰队船员控制，关闭后还原。不干扰绯绯色金转补给。
 // @author       VPS探针开发
 // @match        https://g8hh.github.io/evolve/
+// @updateURL    https://scripts.fengbujue.com/soul-gem-kit.meta.js
+// @downloadURL  https://scripts.fengbujue.com/soul-gem-kit.user.js
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==

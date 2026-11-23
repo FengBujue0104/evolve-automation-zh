@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Evolve 自动化（简体中文版）
 // @namespace    evolve-automation-zh
-// @version      3.3.1.152-zh.10
+// @version      3.3.1.152-zh.11
 // @description  Vollch Evolve-Automation 的简体中文版：界面汉化、游戏外观统一、主界面圆点开关、微软雅黑字体。逻辑与上游一致，设置可互相导入。
 // @author       Fafnir
 // @author       TMVictor
@@ -12,6 +12,8 @@
 // @author       SkyeAmphi
 // @author       VPS探针开发 (zh fork)
 // @match        https://g8hh.github.io/evolve/
+// @updateURL    https://scripts.fengbujue.com/evolve_automation_zh.meta.js
+// @downloadURL  https://scripts.fengbujue.com/evolve_automation_zh.user.js
 // @grant        none
 // @require      https://code.jquery.com/jquery-3.7.1.min.js
 // @require      https://code.jquery.com/ui/1.12.1/jquery-ui.min.js

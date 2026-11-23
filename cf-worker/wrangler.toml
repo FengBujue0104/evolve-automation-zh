@@ -1,0 +1,15 @@
+name = "evolve-scripts"
+main = "worker.js"
+compatibility_date = "2026-11-22"
+workers_dev = true
+
+# Custom domain on the existing fengbujue.com zone. Do not attach other
+# hostnames or touch other Workers.
+[[routes]]
+pattern = "scripts.fengbujue.com"
+custom_domain = true
+
+[vars]
+GITHUB_OWNER = "FengBujue0104"
+GITHUB_REPO = "evolve-automation-zh"
+GITHUB_REF = "main"

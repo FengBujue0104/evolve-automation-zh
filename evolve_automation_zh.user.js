@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Evolve 自动化（简体中文版）
 // @namespace    evolve-automation-zh
-// @version      3.3.1.152-zh.9
+// @version      3.3.1.152-zh.10
 // @description  Vollch Evolve-Automation 的简体中文版：界面汉化、游戏外观统一、主界面圆点开关、微软雅黑字体。逻辑与上游一致，设置可互相导入。
 // @author       Fafnir
 // @author       TMVictor
@@ -20548,7 +20548,7 @@
         }
 
 
-        // ---------- 永恒立柱：把种族列表与当前加成追加到游戏原有 #popper 底部 ----------
+        // ---------- 永恒立柱：种族列表与当前加成（zh.10 起在「详」按钮打开的常驻面板里显示，悬停只给一行提示） ----------
         const GENUS_ZH = {
             humanoid: '类人生物', carnivore: '食肉动物', herbivore: '食草动物', omnivore: '杂食动物',
             small: '矮人', giant: '巨人', reptilian: '爬行动物', avian: '翼类生物',
@@ -20688,6 +20688,9 @@
             lines.push(`<div class="ea-zh-pillar-done">${doneTxt}</div>`);
             return lines.join('');
         }
+        // zh.10：悬停只追加一行短提示；完整名单改到「详」按钮打开的常驻面板（游戏按钮本身用于嵌入立柱，不能拦截）
+        const PILLAR_HINT = '点按钮左上角「详」查看立柱详情（常驻面板，可滚动；点 ✕、空白处或按 Esc 关闭）';
+        function pillarHintHtml() { return esc(PILLAR_HINT); }
         function injectPillar(node) {
             if (!node || node.id !== 'popper') return;
             const all = [...node.querySelectorAll('.ea-zh-pillar')];
@@ -20698,11 +20701,9 @@
             // getTooltipInfo 与 hook 可能各插一次，只保留第一节
             if (all.length > 1) all.slice(1).forEach(e => e.remove());
             if (all.length >= 1) return;
-            const html = pillarHtml();
-            if (!html) return;
             const d = document.createElement('div');
-            d.className = 'ea-zh-pillar ea-zh-skip';
-            d.innerHTML = html;
+            d.className = 'ea-zh-pillar ea-zh-pillar-hint ea-zh-skip';
+            d.innerHTML = pillarHintHtml();
             node.appendChild(d);
         }
         function hookPillarPopper() {
@@ -20719,15 +20720,19 @@
             };
             scan();
             new MutationObserver(ms => {
+                let pillarTouched = false;
                 for (const m of ms) {
                     m.addedNodes.forEach(n => {
                         if (!n || n.nodeType !== 1) return;
                         if (n.id === 'popper') watch(n);
                         else if (n.querySelector) { const p = n.querySelector('#popper'); if (p) watch(p); }
+                        if (n.id === 'portal-ancient_pillars' || (n.querySelector && n.querySelector('#portal-ancient_pillars'))) pillarTouched = true;
                     });
+                    if (m.target && m.target.closest && m.target.closest('#portal-ancient_pillars')) pillarTouched = true;
                 }
                 const n = document.getElementById('popper');
                 if (n) injectPillar(n);
+                if (pillarTouched) ensurePillarInfoButton();
             }).observe(document.body, {childList: true, subtree: true});
             document.addEventListener('mouseover', e => {
                 if (!e.target || !e.target.closest) return;
@@ -20737,6 +20742,118 @@
                     setTimeout(scan, 200);
                 }
             }, true);
+            installPillarPanel();
+        }
+
+        // ---------- 永恒立柱详情面板（zh.10） ----------
+        // 游戏里点「永恒立柱」按钮本身 = 嵌入立柱（tech.pillars===1 时付和谐水晶+猩红石），所以不拦截它；
+        // 在按钮左上角加一个独立的「详」小按钮，点它打开常驻面板。
+        let pillarPanel = null, pillarPanelTimer = null, pillarPanelHtml = '';
+        function ensurePillarInfoButton() {
+            const host = document.getElementById('portal-ancient_pillars');
+            if (!host) return null;
+            let b = host.querySelector(':scope > .ea-zh-pillar-info');
+            if (b) return b;
+            b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'ea-zh-pillar-info ea-zh-skip';
+            b.textContent = '详';
+            b.title = '永恒立柱详情';
+            b.setAttribute('aria-label', '永恒立柱详情');
+            b.setAttribute('aria-haspopup', 'dialog');
+            // 不让悬停冒泡到 .action，避免同时弹出游戏的长说明框
+            b.addEventListener('mouseover', e => e.stopPropagation());
+            b.addEventListener('mousedown', e => e.stopPropagation());
+            b.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (pillarPanel && pillarPanel.style.display !== 'none') closePillarPanel();
+                else openPillarPanel(b);
+            });
+            host.appendChild(b);
+            return b;
+        }
+        function pillarPanelBody() {
+            const h = pillarHtml();
+            return h || '<div class="ea-zh-pillar-row">游戏数据尚未就绪</div>';
+        }
+        function refreshPillarPanel(force) {
+            if (!pillarPanel || pillarPanel.style.display === 'none') return;
+            const body = pillarPanel.querySelector('.ea-zh-pp-body');
+            const html = pillarPanelBody();
+            if (!force && html === pillarPanelHtml) return;
+            const top = body.scrollTop;
+            body.innerHTML = html;
+            pillarPanelHtml = html;
+            body.scrollTop = top;
+        }
+        function placePillarPanel(anchor) {
+            if (!pillarPanel) return;
+            const vw = window.innerWidth, vh = window.innerHeight, m = 12;
+            const w = Math.min(420, vw - 2 * m);
+            pillarPanel.style.width = w + 'px';
+            pillarPanel.style.maxHeight = (vh - 2 * m) + 'px';
+            const ph = Math.min(pillarPanel.offsetHeight || 400, vh - 2 * m);
+            let left = (vw - w) / 2, top = (vh - ph) / 2;
+            if (anchor && anchor.getBoundingClientRect) {
+                const r = anchor.getBoundingClientRect();
+                left = r.left;
+                top = r.bottom + 6;
+                if (top + ph > vh - m) top = Math.max(m, r.top - ph - 6);
+                if (top + ph > vh - m) top = Math.max(m, vh - m - ph);
+            }
+            left = Math.max(m, Math.min(left, vw - w - m));
+            pillarPanel.style.left = Math.round(left) + 'px';
+            pillarPanel.style.top = Math.round(top) + 'px';
+        }
+        function openPillarPanel(anchor) {
+            if (!pillarPanel) {
+                pillarPanel = document.createElement('div');
+                pillarPanel.id = 'ea-zh-pillar-panel';
+                pillarPanel.className = 'ea-zh-skip';
+                pillarPanel.setAttribute('role', 'dialog');
+                pillarPanel.setAttribute('aria-label', '永恒立柱详情');
+                pillarPanel.innerHTML = '<div class="ea-zh-pp-head"><span class="ea-zh-pp-title">永恒立柱详情</span>' +
+                    '<button type="button" class="ea-zh-pp-close" title="关闭（Esc）" aria-label="关闭">✕</button></div>' +
+                    '<div class="ea-zh-pp-body ea-zh-pillar"></div>';
+                pillarPanel.querySelector('.ea-zh-pp-close').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); closePillarPanel(); });
+                // 面板内的指针事件不外泄（不触发游戏悬停说明 / 空白处关闭）
+                ['mousedown', 'pointerdown', 'click', 'mouseover'].forEach(t => pillarPanel.addEventListener(t, e => e.stopPropagation()));
+                document.body.appendChild(pillarPanel);
+            }
+            pillarPanel.style.display = 'flex';
+            refreshPillarPanel(true);
+            pillarPanel.querySelector('.ea-zh-pp-body').scrollTop = 0;
+            placePillarPanel(anchor);
+            pillarPanel._anchor = anchor || null;
+            const pop = document.getElementById('popper');
+            if (pop && pop.dataset && pop.dataset.id === 'portal-ancient_pillars') pop.style.visibility = 'hidden';
+            clearInterval(pillarPanelTimer);
+            pillarPanelTimer = setInterval(() => refreshPillarPanel(false), 2000);
+        }
+        function closePillarPanel() {
+            if (!pillarPanel) return;
+            pillarPanel.style.display = 'none';
+            clearInterval(pillarPanelTimer);
+            pillarPanelTimer = null;
+            const pop = document.getElementById('popper');
+            if (pop) pop.style.visibility = '';
+        }
+        function pillarPanelOpen() { return !!(pillarPanel && pillarPanel.style.display !== 'none'); }
+        function installPillarPanel() {
+            if (window.__EA_ZH_PILLAR_PANEL) return;
+            window.__EA_ZH_PILLAR_PANEL = true;
+            ensurePillarInfoButton();
+            setInterval(ensurePillarInfoButton, 3000);
+            // 空白处（面板和「详」按钮以外）按下即关闭
+            document.addEventListener('mousedown', e => {
+                if (!pillarPanelOpen()) return;
+                const t = e.target;
+                if (t && t.closest && (t.closest('#ea-zh-pillar-panel') || t.closest('.ea-zh-pillar-info'))) return;
+                closePillarPanel();
+            }, true);
+            document.addEventListener('keydown', e => { if (e.key === 'Escape' && pillarPanelOpen()) closePillarPanel(); }, true);
+            window.addEventListener('resize', () => { if (pillarPanelOpen()) placePillarPanel(pillarPanel._anchor && pillarPanel._anchor.isConnected ? pillarPanel._anchor : null); });
         }
 
 
@@ -20811,8 +20928,7 @@
                         (typeof buildings !== 'undefined' && buildings.RuinsAncientPillars && obj === buildings.RuinsAncientPillars)
                     );
                     if (isPillar) {
-                        const h = pillarHtml();
-                        if (h) s = (s ? s + '<br>' : '') + '<div class="ea-zh-pillar ea-zh-skip">' + h + '</div>';
+                        s = (s ? s + '<br>' : '') + '<div class="ea-zh-pillar ea-zh-pillar-hint ea-zh-skip">' + pillarHintHtml() + '</div>';
                     }
                 } catch (e) { console.warn('[ZH] pillar tooltip', e); }
                 return s;
@@ -21029,6 +21145,9 @@ html h1, html h2, html h3, html h4, html h5,
 #ea-zh-tip,
 #popper,
 #spire-mech-kit,
+#soul-gem-kit,
+#fasting-kit,
+#ea-zh-pillar-panel,
 #smk-tip {
   font-family: "Microsoft YaHei", "微软雅黑", sans-serif !important;
 }
@@ -21478,7 +21597,7 @@ html.gruvboxDark #mainColumn .action > a.button {
 
 /* ===== 主界面开关：空心圆（关）/ 实心圆（开），绿色与设置页强调色相同 =====
    只改外观与点击热区，不改点击逻辑。脚本设置页、游戏设置页、脚本弹窗、
-   左下角 #autoScriptContainer / #scriptToggles、以及 #spire-mech-kit / #soul-gem-kit 仍用胶囊开关，不用绿点。
+   左下角 #autoScriptContainer / #scriptToggles、以及 #spire-mech-kit / #soul-gem-kit / #fasting-kit 仍用胶囊开关，不用绿点。
    可见圆点约 12px，热区约 24px，与旁边文字垂直居中并留出间隙，避免挡住标题或数量。 */
 #mTabCivil label.switch,
 #mTabCivic label.switch,
@@ -21724,10 +21843,10 @@ label.switch.ea-supply-toggle {
 }
 
 /* 主界面原生复选框（总督任务等）：同样的空心/实心圆，保留原点击行为 */
-#mTabCivic input[type=checkbox]:not(.switch input):not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input),
-#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input),
+#mTabCivic input[type=checkbox]:not(.switch input):not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):not(#fasting-kit input),
+#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):not(#fasting-kit input),
 #powerGrid input[type=checkbox]:not(label.switch input),
-#portal input[type=checkbox]:not(label.switch input):not(#soul-gem-kit input) {
+#portal input[type=checkbox]:not(label.switch input):not(#soul-gem-kit input):not(#fasting-kit input) {
   -webkit-appearance: none;
   appearance: none;
   width: 14px;
@@ -21741,56 +21860,149 @@ label.switch.ea-supply-toggle {
   cursor: pointer;
   flex-shrink: 0;
 }
-#mTabCivic input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):checked,
-#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):checked,
+#mTabCivic input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):not(#fasting-kit input):checked,
+#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):not(#fasting-kit input):checked,
 #powerGrid input[type=checkbox]:not(label.switch input):checked,
-#portal input[type=checkbox]:not(label.switch input):not(#soul-gem-kit input):checked {
+#portal input[type=checkbox]:not(label.switch input):not(#soul-gem-kit input):not(#fasting-kit input):checked {
   background: var(--ea-accent);
   border-color: var(--ea-accent);
 }
-#mTabCivic input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):disabled,
-#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):disabled,
+#mTabCivic input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):not(#fasting-kit input):disabled,
+#civics input[type=checkbox]:not(label.switch input):not(#spire-mech-kit input):not(#soul-gem-kit input):not(#fasting-kit input):disabled,
 #powerGrid input[type=checkbox]:not(label.switch input):disabled,
-#portal input[type=checkbox]:not(label.switch input):not(#soul-gem-kit input):disabled {
+#portal input[type=checkbox]:not(label.switch input):not(#soul-gem-kit input):not(#fasting-kit input):disabled {
   border-color: var(--ea-off);
   background: transparent;
   opacity: .55;
   cursor: default;
 }
 
-/* 永恒立柱：追加在游戏原有 #popper 底部，不另开第二层提示、不隐藏原说明 */
-#popper .ea-zh-pillar {
-  margin-top: 8px;
-  padding-top: 8px;
+/* 永恒立柱（zh.10）：悬停说明框只追加一行提示；完整名单在「详」按钮打开的常驻面板 #ea-zh-pillar-panel */
+#popper .ea-zh-pillar-hint {
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid var(--ea-border, #999);
-  font: 12.5px/1.55 "Microsoft YaHei", "微软雅黑", sans-serif;
+  font: 12px/1.5 "Microsoft YaHei", "微软雅黑", sans-serif;
+  color: var(--ea-muted, #62717a);
   text-align: left;
   max-width: 22rem;
-  max-height: min(42vh, 360px);
+}
+#popper > div > .ea-zh-pillar-hint { margin-top: 0; padding-top: 2px; border-top: 0; }
+
+/* 「详」按钮：放在立柱按钮左上角（立柱没有 div.special 设置菜单，此处空闲）；右侧仍是绿点槽位 */
+#mainColumn #portal-ancient_pillars > .ea-zh-pillar-info {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 5;
+  min-width: 20px;
+  height: 18px;
+  margin: 0;
+  padding: 0 4px;
+  border: 1px solid var(--ea-accent, #1f9d6a);
+  border-radius: 9px;
+  background: var(--ea-card, #fff);
+  color: var(--ea-accent, #1f9d6a);
+  font: 700 11px/16px "Microsoft YaHei", "微软雅黑", sans-serif !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+}
+#mainColumn #portal-ancient_pillars > .ea-zh-pillar-info:hover,
+#mainColumn #portal-ancient_pillars > .ea-zh-pillar-info:focus-visible {
+  background: var(--ea-accent, #1f9d6a);
+  color: #fff;
+  outline: none;
+}
+
+/* 详情面板：挂在 body 下（不在 #mainColumn/#portal 内，绿点与按钮规则都不作用），自身全部显式设定 */
+#ea-zh-pillar-panel {
+  position: fixed;
+  z-index: 100002;
+  display: none;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 420px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  margin: 0;
+  padding: 0;
+  background: var(--ea-card, #fff);
+  color: var(--ea-text, #1f2a30);
+  border: 1px solid var(--ea-accent, #1f9d6a);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  font: 13px/1.6 "Microsoft YaHei", "微软雅黑", sans-serif !important;
+  text-align: left;
+  letter-spacing: normal;
+  text-shadow: none;
+}
+#ea-zh-pillar-panel * { box-sizing: border-box; font-family: inherit !important; }
+#ea-zh-pillar-panel .ea-zh-pp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 8px 8px 8px 14px;
+  background: var(--ea-head, #eef2f4);
+  border-bottom: 1px solid var(--ea-border, #d5dde2);
+  border-radius: 12px 12px 0 0;
+}
+#ea-zh-pillar-panel .ea-zh-pp-title {
+  font-weight: 700;
+  font-size: 14px;
+  padding-left: 9px;
+  border-left: 3px solid var(--ea-accent, #1f9d6a);
+}
+#ea-zh-pillar-panel .ea-zh-pp-close {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ea-muted, #62717a);
+  font-size: 15px;
+  line-height: 26px;
+  text-align: center;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+#ea-zh-pillar-panel .ea-zh-pp-close:hover,
+#ea-zh-pillar-panel .ea-zh-pp-close:focus-visible {
+  background: var(--ea-hover, rgba(0,0,0,.06));
+  border-color: var(--ea-border, #d5dde2);
+  color: var(--ea-text, #1f2a30);
+  outline: none;
+}
+#ea-zh-pillar-panel .ea-zh-pp-body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  color: inherit;
+  overscroll-behavior: contain;
+  padding: 4px 14px 12px;
 }
-#popper > div > .ea-zh-pillar {
-  margin-top: 0;
-  padding-top: 2px;
-  border-top: 0;
-}
-#popper .ea-zh-pillar-done { font-size: 11.5px; line-height: 1.4; }
-#popper .ea-zh-pillar-h {
+#ea-zh-pillar-panel .ea-zh-pillar-h {
   font-weight: 700;
   color: var(--ea-accent, #1f9d6a);
-  margin: 6px 0 2px;
+  margin: 8px 0 2px;
 }
-#popper .ea-zh-pillar-row { margin: 0 0 1px; }
-#popper .ea-zh-pillar-g { margin: 0 0 1px; }
-#popper .ea-zh-pillar-k {
+#ea-zh-pillar-panel .ea-zh-pillar-row,
+#ea-zh-pillar-panel .ea-zh-pillar-g { margin: 0 0 2px; }
+#ea-zh-pillar-panel .ea-zh-pillar-k {
   color: var(--ea-muted, #62717a);
   margin-right: 6px;
   white-space: nowrap;
 }
-#popper .ea-zh-pillar-done,
-#popper .ea-zh-pillar-miss { word-break: break-word; }
-#popper .ea-zh-pillar b { font-weight: 700; color: var(--ea-accent, #1f9d6a); }
+#ea-zh-pillar-panel .ea-zh-pillar-done { font-size: 12.5px; line-height: 1.55; }
+#ea-zh-pillar-panel .ea-zh-pillar-done,
+#ea-zh-pillar-panel .ea-zh-pillar-miss { word-break: break-word; }
+#ea-zh-pillar-panel b { font-weight: 700; color: var(--ea-accent, #1f9d6a); }
 
 
 /* ===== zh.5：排除项与仙女座舰队排版 ===== */
@@ -22033,7 +22245,7 @@ html.ea-zh-hide-promobar #evolution {
   }
 }
 `;
-        return {t, tr, html, msg: tr, install, translateTree, _dict: NDICT, pillarData, pillarHtml};
+        return {t, tr, html, msg: tr, install, translateTree, _dict: NDICT, pillarData, pillarHtml, openPillarPanel, closePillarPanel, ensurePillarInfoButton};
     })();
     // 上游里的 confirm/alert 都在本作用域内调用，这里就地汉化（函数声明会被提升）
     function confirm(m) { return window.confirm(ZH.tr(m)); }

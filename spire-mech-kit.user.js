@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         尖塔机甲工具箱
 // @namespace    evolve-spire-mech-kit
-// @version      1.5.3
-// @description  通关自动换装与补队；搜集机铺满、缓冲与地狱化升级；灵魂宝石预留；补给近满时拆搜集机补泰坦；尖塔四件套独立自动建造与供电。
+// @version      1.6.0
+// @description  通关自动换装与补队；自动解体（默认开，地狱化战斗机甲不拆）；可选地狱化泰坦；搜集机铺满、缓冲与地狱化升级；灵魂宝石预留；补给近满时拆搜集机补泰坦；尖塔四件套独立自动建造与供电。
 // @author       VPS探针开发
 // @match        https://g8hh.github.io/evolve/
 // @grant        none
@@ -150,7 +150,7 @@
     if (!m) return '?';
     const wp = (m.hardpoint || []).map(zhWeapon).join(',');
     const eq = (m.equip || []).map((e) => zhEquip(e, m.size)).join(',');
-    return zhSize(m.size) + '/' + zhChassis(m.chassis) + (wp ? '/[' + wp + ']' : '') + (eq ? ' {' + eq + '}' : '');
+    return (m.infernal ? '地狱化' : '') + zhSize(m.size) + '/' + zhChassis(m.chassis) + (wp ? '/[' + wp + ']' : '') + (eq ? ' {' + eq + '}' : '');
   }
 
 
@@ -405,10 +405,13 @@
     infernalCollectorMode: 'upgrade',
     infernalUpgradeKeepRatio: 0.5, // 升级只花补给中高于 sup_max×此值 的部分（留给 Vollch 造尖塔建筑/泰坦）
     infernalUpgradePerTick: 10,     // 每个 watch 周期最多换几台
+    // v1.6.0：通关换装 / 持续补队造泰坦时用地狱化（需 blood.prepared≥3；补给与灵魂宝石够地狱化价才用，否则照旧造普通）。默认关
+    infernalTitans: false,
     // 相对最优不拆（默认开）：当前层绝对效率再低，只要已接近本层最优就不拆，避免低效层空转拆装
     protectNearOptimal: true,
     nearOptimalRatio: 0.99, // rating >= best * 此值 → 视为相对最优
-    autoScrap: false,
+    // v1.6.0：默认开（用户在面板上手动关掉后会记住，见 PREFS）
+    autoScrap: true,
     autoScrapThreshold: 0.5, // 相对最优的效率低于此值才自动解体（仍受 protectNearOptimal 约束）
     autoScrapIntervalMs: 15000,
     confirmBulk: true,
@@ -445,6 +448,42 @@
     autoPurifyResearch: true      // 通关获得鲜血之石后自动研究「增强型空气过滤网」
   };
 
+  // ---------- v1.6.0 偏好存储（独立 localStorage 键，不碰主脚本 settings）----------
+  // 1.5.3 及以前不保存任何设置（每次加载都回到默认值），自动解体默认关。
+  // 迁移规则：没有 smk-prefs、或 v < PREFS_VERSION、或 autoScrapUserSet 不为 true → 自动解体按新默认开；
+  // 只有在本版及以后用户在面板上亲手切换过（autoScrapUserSet=true）才沿用存下的开/关。
+  const PREFS_KEY = 'smk-prefs';
+  const PREFS_VERSION = 1;
+  function loadPrefs() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null'); } catch (e) { raw = null; }
+    const out = { migrated: false, raw };
+    if (!raw || typeof raw !== 'object' || !(Number(raw.v) >= PREFS_VERSION)) {
+      CFG.autoScrap = true;
+      out.migrated = true;
+      savePrefs({ autoScrapUserSet: false });
+      return out;
+    }
+    if (raw.autoScrapUserSet === true && typeof raw.autoScrap === 'boolean') CFG.autoScrap = raw.autoScrap;
+    else CFG.autoScrap = true;
+    if (typeof raw.autoScrapThreshold === 'number' && isFinite(raw.autoScrapThreshold) && raw.autoScrapThreshold >= 0 && raw.autoScrapThreshold <= 1) CFG.autoScrapThreshold = raw.autoScrapThreshold;
+    if (typeof raw.infernalTitans === 'boolean') CFG.infernalTitans = raw.infernalTitans;
+    return out;
+  }
+  function savePrefs(extra) {
+    let prev = null;
+    try { prev = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null'); } catch (e) { prev = null; }
+    const o = Object.assign({}, (prev && typeof prev === 'object') ? prev : {}, {
+      v: PREFS_VERSION,
+      autoScrap: !!CFG.autoScrap,
+      autoScrapThreshold: Number(CFG.autoScrapThreshold) || 0.5,
+      infernalTitans: !!CFG.infernalTitans
+    }, extra || {});
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(o)); } catch (e) {}
+    return o;
+  }
+  try { loadPrefs(); } catch (e) {}
+
   function mechs() {
     const mb = liveMechbay();
     return ((mb && mb.mechs) || []).map((m, id) => Object.assign({ id }, m));
@@ -478,7 +517,9 @@
     if (m.size === 'collector' && m.infernal && !CFG.scrapInfernalCollectors) return false;
     // 默认：已达相对最优的不进解体名单（可 filters.ignoreNearOptimal=true 强制）
     const protectNear = (filters.protectNearOptimal != null) ? !!filters.protectNearOptimal : CFG.protectNearOptimal;
-    if (protectNear && !filters.ignoreNearOptimal && isNearOptimal(m)) return false;
+    // 搜集机没有战斗效率，isNearOptimal 恒为真；只有明确选了「尺寸=搜集」才把它们放进名单（含地狱化搜集，受 scrapInfernalCollectors 约束）
+    const explicitCollector = m.size === 'collector' && filters.size === 'collector';
+    if (protectNear && !filters.ignoreNearOptimal && !explicitCollector && isNearOptimal(m)) return false;
     if (filters.allNonInfernal) return !m.infernal;
     if (filters.size && m.size !== filters.size) return false;
     if (filters.chassis && m.chassis !== filters.chassis) return false;
@@ -568,7 +609,8 @@
   function setBlueprint(mech) {
     const av = assemblyVue();
     if (!av) return { ok: false, error: '找不到机甲组装界面，请打开机甲实验室页。' };
-    if (av.b && 'infernal' in av.b) av.b.infernal = !!mech.infernal;
+    // 地狱化只在 blood.prepared≥3 时有效（游戏也只在那时显示勾选）；未解锁时强制普通，避免付 2.5 倍补给却拿不到加成
+    if (av.b && ('infernal' in av.b || mech.infernal)) av.b.infernal = !!mech.infernal && infernalUnlocked();
     av.setSize(mech.size);
     av.setType(mech.chassis);
     for (let i = 0; i < (mech.hardpoint || []).length; i++) av.setWep(mech.hardpoint[i], i);
@@ -614,7 +656,7 @@
       id: 'hell-mech-' + Math.floor(Math.random() * 100000),
       action: 'hell-mech',
       type: blueprint,
-      label: zhSize(blueprint.size || '?') + ' ' + zhChassis(blueprint.chassis || '?'),
+      label: (blueprint.infernal ? '地狱化 ' : '') + zhSize(blueprint.size || '?') + ' ' + zhChassis(blueprint.chassis || '?'),
       cna: false, time: 0, q: 1, qs: 1, t_max: 0, bres: false
     });
     return { built: false, queued: true, via: 'live-queue-splice' };
@@ -1135,6 +1177,26 @@
    * - 补给够但舱位不够 → 只拆出 1 台泰坦空位的搜集机，再立刻造 1 台
    * - 补给不够 → 用空舱位造搜集机（等 tick 产补给）；不拆
    */
+  /**
+   * v1.6.0：本次造的战斗机甲（泰坦等）用不用地狱化。
+   * 只在 CFG.infernalTitans 开、已解锁（prepared≥3）、且补给与灵魂宝石都够地狱化价时为真；否则造普通（行为同 1.5.x）。
+   */
+  function chooseInfernalCombat(size) {
+    size = size || CFG.regearSize || 'titan';
+    if (!CFG.infernalTitans || size === 'collector' || !infernalUnlocked()) return false;
+    return canAfford(size, true);
+  }
+  function combatBlueprint(size) {
+    return Object.assign(bestMech(size), { infernal: chooseInfernalCombat(size) });
+  }
+  /** 自动流程跑完后把蓝图的地狱化勾选还原成用户原来的状态（工具箱自己造机甲时会临时改它） */
+  function withUserInfernalKept(fn) {
+    const bp0 = liveBlueprint();
+    const keep = !!(bp0 && bp0.infernal);
+    try { return fn(); }
+    finally { try { setBlueprintInfernal(keep && infernalUnlocked()); } catch (e) {} }
+  }
+
   function tryBuildOneTitanBuffered() {
     const size = CFG.regearSize || 'titan';
     const titanSp = mechSpace(size);
@@ -1148,9 +1210,10 @@
     out.reserveFloor = soulGemReserveFloor();
 
     if (afford && free >= titanSp) {
-      const set = setBlueprint(bestMech(size));
+      const set = setBlueprint(combatBlueprint(size));
       if (!set.ok) { out.error = set.error; return out; }
       const r = buildOne();
+      out.infernal = !!(liveBlueprint() || {}).infernal;
       out.built = !!r.built; out.queued = !!r.queued; out.via = r.via; out.action = r.built ? 'build-titan' : (r.queued ? 'queue-titan' : 'fail');
       out.error = r.error || null;
       return out;
@@ -1175,9 +1238,10 @@
       }
       if (scrap.n) log('[搜集缓冲] 拆搜集机 ' + scrap.n + ' 台' + (scrap.nInfernal ? ('（其中地狱化 ' + scrap.nInfernal + '）') : '') + '，腾出约 ' + scrap.freed + ' 格（需 ' + scrap.need + ' / 泰坦占 ' + scrap.titanSp + '）');
       if (freeBaySpace() >= titanSp && canAfford(size, false)) {
-        const set = setBlueprint(bestMech(size));
+        const set = setBlueprint(combatBlueprint(size));
         if (!set.ok) { out.error = set.error; out.action = 'scrap-only'; return out; }
         const r = buildOne();
+        out.infernal = !!(liveBlueprint() || {}).infernal;
         out.built = !!r.built; out.queued = !!r.queued; out.via = r.via;
         out.action = r.built ? 'scrap-build-titan' : (r.queued ? 'scrap-queue-titan' : 'scrap-only');
         out.error = r.error || null;
@@ -1226,7 +1290,7 @@
         out.action = 'wait-supply';
         return out;
       }
-      const set = setBlueprint(bestMech(size));
+      const set = setBlueprint(combatBlueprint(size));
       if (!set.ok) { out.error = set.error; out.action = 'wait-supply'; return out; }
       const r = buildOne();
       out.built = !!r.built; out.queued = !!r.queued; out.via = r.via;
@@ -1246,6 +1310,9 @@
    * 3) 设当前楼层最优泰坦蓝图并建造/入队补齐
    */
   function runRegearPipeline(reason) {
+    return withUserInfernalKept(() => runRegearPipelineInner(reason));
+  }
+  function runRegearPipelineInner(reason) {
     const out = { ok: false, reason: reason || 'manual', steps: {} };
     if (!isEvolveReady()) {
       out.error = '机甲实验室未就绪';
@@ -1303,9 +1370,9 @@
         log('[换装] ③完成（搜集机）：即时 ' + built + '，入队 ' + queued + (bc.blockedBySoulReserve ? '（灵魂宝石预留拦住）' : '') + '；机库 ' + build.bay + '/' + build.bayMax + '；灵魂宝石 ' + Math.floor(build.soul));
       } else {
         const size = CFG.regearSize || 'titan';
-        const mech = bestMech(size);
+        const mech = combatBlueprint(size);
         const set = setBlueprint(mech);
-        out.steps.blueprint = { set, mech: { size: mech.size, chassis: mech.chassis, hardpoint: mech.hardpoint.slice(), equip: mech.equip.slice() } };
+        out.steps.blueprint = { set, mech: { size: mech.size, chassis: mech.chassis, hardpoint: mech.hardpoint.slice(), equip: mech.equip.slice(), infernal: !!mech.infernal } };
         if (!set.ok) { out.error = set.error; log('[换装] ③蓝图失败：' + zhErr(set.error)); return out; }
         log('[换装] ③蓝图 ' + zhMechBrief(mech) + '；开始缓冲补装');
         const cycles = [];
@@ -1353,8 +1420,10 @@
     doScrapIds([id]);
     refreshStats();
   }
-  function setAuto(on) {
+  function setAuto(on, opts) {
+    opts = opts || {};
     CFG.autoScrap = !!on;
+    if (opts.user) savePrefs({ autoScrapUserSet: true });
     if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
     if (CFG.autoScrap) {
       autoTimer = setInterval(autoTick, CFG.autoScrapIntervalMs);
@@ -1381,6 +1450,9 @@
    * - 否则补泰坦；补给不足先造搜集机；舱位不够则按「1台泰坦空位」拆搜集再立刻造 1 台泰坦
    */
   function runTopUp(reason) {
+    return withUserInfernalKept(() => runTopUpInner(reason));
+  }
+  function runTopUpInner(reason) {
     const out = { ok: false, reason: reason || 'tick', did: false, cycles: [] };
     if (!CFG.autoRegear || !CFG.autoTopUp) {
       out.skipped = 'disabled';
@@ -2164,13 +2236,16 @@
     const list = mechs();
     const size = (mb.blueprint && mb.blueprint.size) || 'titan';
     const best = bestMech(size === 'collector' ? 'titan' : size);
-    let sum = 0, bad = 0, near = 0;
+    let sum = 0, bad = 0, near = 0, infCombat = 0, infProtected = 0;
     const rows = [];
     for (const m of list) {
       if (m.size === 'collector') continue;
       const r = ratingOf(m, bestMech(m.size));
       sum += r;
-      if (r < (CFG.nearOptimalRatio || 0.99)) bad++;
+      if (m.infernal) infCombat++;
+      // v1.6.0：受保护的地狱化战斗机甲不算「可拆劣机」（它们永远不会被拆）
+      if (isProtectedInfernal(m)) { infProtected++; if (r >= (CFG.nearOptimalRatio || 0.99)) near++; }
+      else if (r < (CFG.nearOptimalRatio || 0.99) && !isNearOptimal(m)) bad++;
       else near++;
       rows.push(r);
     }
@@ -2183,9 +2258,10 @@
     const allCols = list.filter(m => m.size === 'collector').length;
     statsEl.innerHTML =
       `第${sp.count ?? '?'}层 ${zhType(sp.type)||'?'}　首领 ${zhBoss(sp.boss)||'?'}　属性 ${zhStatusList(sp.status)}　进度 ${(sp.progress||0).toFixed(2)}%　剩余 ${sp.time||'?'}<br>` +
-      `机库 ${mb.bay}/${mb.max}　台数 ${list.length}（相对最优≈${near} / 可拆劣机≈${bad}）均效 ${avg}%　建造队列 ${qLen}（机甲项 ${qMech}）` +
+      `机库 ${mb.bay}/${mb.max}　台数 ${list.length}（相对最优≈${near} / 可拆劣机≈${bad}${infCombat ? ' / 地狱化战斗 ' + infCombat + (infProtected ? '（受保护）' : '') : ''}）均效 ${avg}%　建造队列 ${qLen}（机甲项 ${qMech}）` +
       (wg ? ` <b style="color:#f66">恶魔领主战斗中，自动换装已暂停</b>` : '') +
-      `<br>推荐：${zhMechBrief(best)}` +
+      `<br>推荐：${zhMechBrief(best)}　蓝图：${zhMechBrief(mb.blueprint)}` +
+      `<br>自动解体：${CFG.autoScrap ? '开' : '关'}（效率&lt;${CFG.autoScrapThreshold}，地狱化战斗机甲不拆）　地狱化泰坦：${CFG.infernalTitans ? '开' : '关'}${infernalUnlocked() ? '' : '（未解锁）'}` +
       `<br>灵魂宝石 ${Math.floor(soul ? soul.amount : 0)}　补给 ${Math.floor(pur ? pur.supply : 0)}/${Math.floor(pur ? pur.sup_max : 0)}` +
       `<br>通关换装：${CFG.autoRegear ? '开' : '关'}　效率 ${CFG.regearEffThreshold}　${zhSize(CFG.regearSize)}/${zhFillMode(CFG.regearFillMode)}` +
       (CFG.regearFillMode === 'count' ? `×${CFG.regearCount}` : '') +
@@ -2362,7 +2438,9 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
   }
   const SMK_TIPS = {
     'smk-near': '已达本层相对最优的机甲不拆',
-    'smk-auto': '定时解体效率低于阈值的机甲；打恶魔领主时暂停',
+    'smk-auto': '定时解体效率低于阈值的机甲（默认开；手动关掉后会记住）；地狱化战斗机甲不拆；打恶魔领主时暂停',
+    'smk-inf-titan': '换装/补队造泰坦时，补给与灵魂宝石够地狱化价就造地狱化；不够照旧造普通',
+    'smk-binf': '「当前楼层最优」模式造地狱化；需鲜血之石「机甲地狱化」',
     'smk-regear': '通关后按本层最优配置解体劣机并补装；打恶魔领主时暂停',
     'smk-topup': '队列造完后若还有空舱位，继续入队（队列上限 20）',
     'smk-collector-fill': '开：只补最优搜集机；关：改补泰坦',
@@ -2522,11 +2600,12 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
       startUiRefresh();
       if (CFG.autoRegear && !regearTimer) setAutoRegear(true);
       if (CFG.autoSpireFour && !spireFourTimer) setAutoSpireFour(true);
+      if (CFG.autoScrap && !autoTimer) setAuto(true);
       return;
     }
     injectStyle();
     panel = el('div', { id: 'spire-mech-kit' });
-    panel.innerHTML = `<div class="smk-title" role="button" aria-expanded="true"><span class="smk-caret">▾</span>尖塔机甲工具箱 v1.5.3</div>`;
+    panel.innerHTML = `<div class="smk-title" role="button" aria-expanded="true"><span class="smk-caret">▾</span>尖塔机甲工具箱 v1.6.0</div>`;
     statsEl = el('div', { id: 'smk-stats', class: 'smk-stats' });
     panel.appendChild(statsEl);
 
@@ -2560,6 +2639,7 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
     row2.appendChild(select('smk-bsize', SIZE.map(s => [s, zhSize(s)]), 'titan'));
     row2.appendChild(document.createTextNode('数量'));
     row2.appendChild(el('input', { id: 'smk-count', type: 'number', min: '1', value: '1', style: { width: '56px' } }));
+    row2.appendChild(el('label', { title: '「当前楼层最优」模式造地狱化（需鲜血之石「机甲地狱化」）；「当前蓝图」模式沿用游戏蓝图上的勾选' }, `<input type="checkbox" id="smk-binf"${(liveBlueprint() || {}).infernal ? ' checked' : ''}> 地狱化`));
     row2.appendChild(el('button', { type: 'button', id: 'smk-fill' }, '填满机库'));
     row2.appendChild(el('button', { type: 'button', id: 'smk-build', style: { background: '#356', color: '#fff' } }, '设置蓝图并建造/入队'));
     buildBox.appendChild(row2);
@@ -2598,6 +2678,7 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
     row3.appendChild(document.createTextNode('地狱化搜集'));
     row3.appendChild(select('smk-inf-col', [['upgrade', '自动+铺满后升级'], ['auto', '自动(只铺空位)'], ['always', '总是'], ['never', '不用']], CFG.infernalCollectorMode));
     row3.appendChild(el('label', { title: '腾泰坦空位时可拆地狱化搜集机（按产量升序，普通先拆）' }, `<input type="checkbox" id="smk-inf-scrap" ${CFG.scrapInfernalCollectors ? 'checked' : ''}> 可拆地狱化搜集`));
+    row3.appendChild(el('label', { title: '换装/补队造泰坦时，补给与灵魂宝石够地狱化价就造地狱化（+25% 战力，1500 宝石/台；拆了只回一半）；不够照旧造普通' }, `<input type="checkbox" id="smk-inf-titan" ${CFG.infernalTitans ? 'checked' : ''}> 地狱化泰坦`));
     row3.appendChild(el('button', { type: 'button', id: 'smk-regear-now', style: { background: '#264', color: '#fff' } }, '立即跑流水线'));
     row3.appendChild(el('button', { type: 'button', id: 'smk-topup-now', style: { background: '#246', color: '#fff' } }, '立即补队'));
     regearBox.appendChild(row3);
@@ -2635,7 +2716,7 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
       log(`预览匹配 ${hit.length} 台：` + hit.slice(0, 12).map(m => {
         const best = bestMech(m.size === 'collector' ? 'titan' : m.size);
         const r = m.size === 'collector' ? '-' : (ratingOf(m, best) * 100).toFixed(0) + '%';
-        return `#${m.id + 1} ${zhSize(m.size)}/${zhChassis(m.chassis)}/${zhWeapon((m.hardpoint || [])[0]) || '-'}(${r})`;
+        return `#${m.id + 1} ${m.infernal ? '地狱化' : ''}${zhSize(m.size)}/${zhChassis(m.chassis)}/${zhWeapon((m.hardpoint || [])[0]) || '-'}(${r})`;
       }).join('；') + (hit.length > 12 ? '…' : ''));
       refreshStats();
     };
@@ -2648,7 +2729,7 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
         const ok = window.confirm(`将解体 ${hit.length} 台机甲（地狱化战斗机甲已排除${CFG.scrapInfernalCollectors ? '；地狱化搜集机可能在内' : ''}）。\n游戏无撤销，只能靠返还的宝石/补给重建。\n继续？`);
         if (!ok) { log('已取消解体'); return; }
       }
-      const r = doScrapIds(hit.map(m => m.id));
+      const r = doScrapIds(hit.map(m => m.id), { ignoreNearOptimal: true }); // 名单已按「相对最优不拆」筛过
       if (!r.ok) { log(zhErr(r.error)); return; }
       log(`已解体 ${r.n} 台：灵魂宝石 +${r.gemsDelta}（估+${r.gemsExpected}），补给 +${Math.floor(r.supplyDelta)}（估+${r.supplyExpected}），腾出 ${r.bayDelta} 格（现 ${r.bay}/${r.bayMax}）`);
       refreshStats();
@@ -2678,7 +2759,9 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
         mech = JSON.parse(JSON.stringify(liveBlueprint()));
       } else {
         mech = bestMech(size);
+        mech.infernal = !!(document.getElementById('smk-binf') || {}).checked;
       }
+      if (mech.infernal && !infernalUnlocked()) { mech.infernal = false; log('地狱化未解锁（需鲜血之石「机甲地狱化」），按普通建造'); }
       const set = setBlueprint(mech);
       if (!set.ok) { log(zhErr(set.error)); return; }
       log(`蓝图已设为 ${zhMechBrief(mech)}，开始建造×${count}`);
@@ -2692,10 +2775,17 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
 
     document.getElementById('smk-auto').onchange = (e) => {
       CFG.autoScrapThreshold = Number(document.getElementById('smk-auto-eff').value) || 0.5;
-      setAuto(e.target.checked);
+      setAuto(e.target.checked, { user: true });
     };
     document.getElementById('smk-auto-eff').onchange = (e) => {
       CFG.autoScrapThreshold = Number(e.target.value) || 0.5;
+      savePrefs();
+    };
+    document.getElementById('smk-inf-titan').onchange = (e) => {
+      CFG.infernalTitans = !!e.target.checked;
+      savePrefs();
+      log('地狱化泰坦：' + (CFG.infernalTitans ? '开（补给/灵魂宝石够地狱化价才用）' : '关') + (infernalUnlocked() ? '' : '（未解锁：需鲜血之石「机甲地狱化」）'));
+      refreshStats();
     };
     document.getElementById('smk-near').onchange = (e) => {
       CFG.protectNearOptimal = !!e.target.checked;
@@ -2785,10 +2875,11 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
     refreshStats();
     refreshSpireFourStatus();
     startUiRefresh();
-    // 默认开启通关侦测 + 持续补队
+    // 默认开启通关侦测 + 持续补队；v1.6.0 起自动解体也按 CFG（默认开）启动定时器
+    setAuto(CFG.autoScrap);
     setAutoRegear(CFG.autoRegear);
     setAutoSpireFour(CFG.autoSpireFour);
-    log('尖塔机甲工具箱 v1.5.3 已挂载（地狱化搜集：' + zhInfMode(CFG.infernalCollectorMode) + (infernalUnlocked() ? '' : '，未解锁机甲地狱化') + '；四件套：' + (CFG.autoSpireFour ? '开' : '关') + '）');
+    log('尖塔机甲工具箱 v1.6.0 已挂载（自动解体：' + (CFG.autoScrap ? '开' : '关') + '；地狱化搜集：' + zhInfMode(CFG.infernalCollectorMode) + (infernalUnlocked() ? '' : '，未解锁机甲地狱化') + '；四件套：' + (CFG.autoSpireFour ? '开' : '关') + '）');
     window.SpireMechKit = {
       CFG, previewScrap, doScrapIds, setBlueprint, buildOrQueue, bestMech, mechPower, ratingOf,
       refreshStats, isWaygateFight, clearMechQueue, listHellMechQueue, runRegearPipeline, buildOne,
@@ -2802,6 +2893,8 @@ html.dracula { --smk-card:#282a36; --smk-card2:#303241; --smk-head:#21222c; --sm
       getBestSupplyRatio, planSpireFour, planFromLive, snapshotSpireFour, applySpirePower, setStructOn,
       tryBuildOne, tryResearchPurify, purifyStatus, spireFourTick, setAutoSpireFour, suppressVollchSpire,
       buildingCosts, currentSupportMax, combatMechSpace, totalBayUsed, syncMechbayMax, refreshSpireFourStatus, livePortalStruct,
+      chooseInfernalCombat, combatBlueprint, matchFilters, loadPrefs, savePrefs, PREFS_KEY, PREFS_VERSION,
+      get autoTimerOn() { return !!autoTimer; },
       get topUpFollowing() { return topUpFollowing; },
       set topUpFollowing(v) { topUpFollowing = !!v; }
     };

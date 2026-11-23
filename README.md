@@ -4,8 +4,8 @@
 
 ## 当前版本
 
-- **Evolve 自动化（简体中文版）** `3.3.1.152-zh.9`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/evolve_automation_zh.user.js)
-- **尖塔机甲工具箱** `1.5.3`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/spire-mech-kit.user.js)
+- **Evolve 自动化（简体中文版）** `3.3.1.152-zh.10`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/evolve_automation_zh.user.js)
+- **尖塔机甲工具箱** `1.6.0`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/spire-mech-kit.user.js)
 - **尖塔灵魂石工具箱** `1.2.1`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/soul-gem-kit.user.js)
 - **禁食工具箱** `1.0.0`：[安装脚本](https://raw.githubusercontent.com/FengBujue0104/evolve-automation-zh/main/fasting-kit.user.js)
 
@@ -21,9 +21,13 @@
 
 中文主脚本基于 [Vollch/Evolve-Automation](https://github.com/Vollch/Evolve-Automation) 3.3.1.152，界面汉化并统一了外观。设置键和导入导出格式与原版兼容，已有设置可以照常导入。
 
-这版会直接屏蔽锅巴汉化加在页面右侧的客服、加群和公众号浮窗。设置里的「通用 → 附加界面」有一个默认关闭的「隐藏底栏」开关，打开后会藏掉页面底部的 Evolve 作者和外链栏，并让游戏画面填满原来底栏占据的空间。zh.9 还会把灵魂石工具箱从主脚本的绿点美化样式里排除，避免开关错位。
+这版会直接屏蔽锅巴汉化加在页面右侧的客服、加群和公众号浮窗。设置里的「通用 → 附加界面」有一个默认关闭的「隐藏底栏」开关，打开后会藏掉页面底部的 Evolve 作者和外链栏，并让游戏画面填满原来底栏占据的空间。zh.9 起把灵魂石工具箱、zh.10 起把禁食工具箱从主脚本的绿点美化样式里排除，避免开关错位。
+
+永恒立柱的详情（加成、已立柱/未立柱名单、巨塔段数）从 zh.10 起改为常驻面板：点立柱按钮左上角的「详」小按钮打开，可以滚动，鼠标移开不会消失；点 ✕、面板外空白处或按 Esc 关闭。立柱按钮本身仍是游戏的「嵌入立柱」，脚本不拦截它。悬停说明框里只留一行提示。
 
 尖塔机甲工具箱负责通关后自动换装与补队、搜集机铺满与地狱化升级，以及尖塔四件套（空气净化器、登陆点、登陆营地、机甲舱）的独立建造和供电。四件套由本脚本独立管理，不受主脚本建筑上限和电力控制影响。
+
+从 1.6.0 起自动解体默认开启（只拆效率低于阈值的普通战斗机甲，地狱化战斗机甲和搜集机不会被它拆）；在面板上手动关掉后会记住，刷新后仍是关。各项功能都能识别地狱化机甲：换装和补队不会把地狱化机甲当成不匹配反复拆装，工具箱自己造完机甲后会把游戏蓝图上的「地狱化」勾选还原。另有默认关闭的「地狱化泰坦」选项，补给和灵魂宝石够时换装/补队直接造地狱化泰坦。
 
 尖塔灵魂石工具箱是爬塔时用来拉高灵魂宝石产量的辅助脚本，默认关闭，开始爬塔后可自动启用。开启后会尽量把引诱装置开满、把士兵送进地狱增加巡逻，并接管灵魂宝石三件套和双排桨军舰的供能，避免主脚本抢开关。适时建造默认关闭以节省灵魂宝石；关闭全部掠食者无人机默认开启（只停电、不拆除）。双排桨军舰不会被关掉，补给仍由主脚本的运输船和自动补给管理。
 

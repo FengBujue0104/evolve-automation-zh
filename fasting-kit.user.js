@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         禁食工具箱
 // @namespace    evolve-fasting-kit
-// @version      1.0.1
+// @version      1.0.2
 // @description  禁食剧情模式专用：按人口上限预留冥想者，默认保住不死（长生秘辛），不安全时关掉生命灌注器，并显示五项饥荒目标与“食物”烹饪进度。独立于主脚本，关闭后不再改职业或血湖建筑。
 // @author       VPS探针开发
 // @match        https://g8hh.github.io/evolve/
+// @match        https://evolve.fengbujue.com/*
 // @updateURL    https://scripts.fengbujue.com/fasting-kit.meta.js
 // @downloadURL  https://scripts.fengbujue.com/fasting-kit.user.js
 // @grant        none

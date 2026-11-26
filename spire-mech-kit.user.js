@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         尖塔机甲工具箱
 // @namespace    evolve-spire-mech-kit
-// @version      1.6.1
+// @version      1.6.2
 // @description  通关自动换装与补队；自动解体（默认开，地狱化战斗机甲不拆）；可选地狱化泰坦；搜集机铺满、缓冲与地狱化升级；灵魂宝石预留；补给近满时拆搜集机补泰坦；尖塔四件套独立自动建造与供电。
 // @author       VPS探针开发
 // @match        https://g8hh.github.io/evolve/
+// @match        https://evolve.fengbujue.com/*
 // @updateURL    https://scripts.fengbujue.com/spire-mech-kit.meta.js
 // @downloadURL  https://scripts.fengbujue.com/spire-mech-kit.user.js
 // @grant        none
